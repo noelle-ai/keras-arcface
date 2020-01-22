@@ -3,21 +3,63 @@
 import os
 import argparse
 import joblib
-import numpy as np
+
 import keras
+import numpy as np
+import pandas as pd
 from keras.datasets import mnist
 from keras.optimizers import SGD, Adam
 from keras.callbacks import ModelCheckpoint, CSVLogger,  TerminateOnNaN
-import archs
+from sklearn.model_selection import train_test_split
+
 from metrics import *
 from scheduler import *
+import tensorflow.compat.v1 as tf
+from cv2 import cv2
+from keras.utils import np_utils, to_categorical
+import myDataGen as dg
+
+import archs
 # ----------------------
+
+# [ Target Data_China Face_Noeun ]
+# ----------------------
+TRAIN_DIR = str(os.getcwd())
+info = pd.read_csv('face_embedding_nn_exp1_train.csv')
+
+data = []
+labels = []
+
+for i in range(len(info)-37000):
+    img = cv2.imread(info.iloc[i]['file_name'])
+    label = (info.iloc[i]['label'])-1
+    data.append(img)
+    labels.append(label)
+    print(i)
+
+# 픽셀 [0, 1]로 만들기 위함
+data = np.array(data, dtype="float") / 255.0
+labels = np_utils.to_categorical(labels)
+(trainX, testX, trainY, testY) = train_test_split(data, labels,
+                                                  test_size=0.25, random_state=42)
+trainY = to_categorical(trainY, 2)
+testY = to_categorical(testY, 2)
+
+
+# DataGenerator
+aug = dg.DataGenerator(data, labels)
+# compute quantities required for featurewise normalization
+# (std, mean, and principal components if ZCA whitening is applied)
+
+print('done')
+# ----------------------
+
 
 # [ GPU Setting ]
 # ----------------------
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-config = tf.ConfigProto()
+config = tf.compat.v1.ConfigProto() # tf.ConfigProto()
 config.gpu_options.per_process_gpu_memory_fraction = 0.4
 sessopm = tf.Session(config=config)
 # ----------------------
@@ -62,7 +104,6 @@ def parse_args():
     args = parser.parse_args()
 
     return args
-
 
 def main():
     args = parse_args()
@@ -110,7 +151,6 @@ def main():
             optimizer=optimizer,
             metrics=['accuracy'])
     model.summary() # check
-    # ----------------------
 
     callbacks = [
         ModelCheckpoint(os.path.join('models', args.name, 'model.hdf5'),
@@ -120,21 +160,41 @@ def main():
 
     if args.scheduler == 'CosineAnnealing':
         callbacks.append(CosineAnnealingScheduler(T_max=args.epochs, eta_max=args.lr, eta_min=args.min_lr, verbose=1))
+    # ----------------------
 
     # [ Train ]
     # ----------------------
     if 'face' in args.arch:
+        model.fit_generator(aug.__data_geeration([trainX, trainY], trainY),
+                            steps_per_epoch=len(trainX) / 32,
+                            epochs=args.epochs,
+                            validation_data=([testX, testY], trainY))
+        '''''''''
+        model.fit_generator(datagen.flow(x_train, y_train, batch_size=32),
+                    steps_per_epoch=len(x_train) / 32, epochs=epochs)
+                    
         model.fit([X, y], y, validation_data=([X_test, y_test], y_test),
             batch_size=args.batch_size,
             epochs=args.epochs,
             callbacks=callbacks,
             verbose=1)
-    else:
+        
         model.fit(X, y, validation_data=(X_test, y_test),
             batch_size=args.batch_size,
             epochs=args.epochs,
             callbacks=callbacks,
             verbose=1)
+        '''''''''
+    else:
+        model.fit_generator(aug, steps_per_epoch=len(trainX) / 32,
+                            epochs=args.epochs,
+                            validation_data=([testX, testY], testY))
+
+        model.fit_generator(trainX, trainY,
+                            batch_size=args.batch_size,
+                            epochs=args.epochs,
+                            callbacks=callbacks,
+                            verbose=1)
     # ----------------------
 
     # [ Model Evaluate ]

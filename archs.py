@@ -64,7 +64,7 @@ def vgg8_arcface(args):
 
 def vgg8_cosface(args):
     input = Input(shape=(28, 28, 1))
-    y = Input(shape=(10,))
+    y = Input(shape=(10,)) # Y value, SOFTMAX 차이; feature embedding 특화 위해 ! 정답
 
     x = vgg_block(input, 16, 2)
     x = MaxPooling2D(pool_size=(2, 2))(x)

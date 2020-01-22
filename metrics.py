@@ -22,7 +22,7 @@ class ArcFace(Layer):
                                 regularizer=self.regularizer)
 
     def call(self, inputs):
-        x, y = inputs
+        x, y = inputs # arcFace 특징 Y value
         c = K.shape(x)[-1]
         # normalize feature
         x = tf.nn.l2_normalize(x, axis=1)
